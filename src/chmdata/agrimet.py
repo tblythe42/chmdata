@@ -31,7 +31,7 @@ from pandas import read_table, to_datetime, date_range, to_numeric, DataFrame
 import matplotlib.pyplot as plt
 import datetime as dt
 
-STATION_INFO_URL = 'https://www.usbr.gov/pn/agrimet/agrimetmap/usbr_map.json'
+STATION_INFO_URL = 'https://www.usbr.gov/pn/agrimet/agrimetmap/usbr_map.json'  # Still missing many install dates
 # AGRIMET_MET_REQ_SCRIPT_PN = 'https://www.usbr.gov/pn-bin/agrimet.pl' ## appears to be broken
 AGRIMET_MET_REQ_SCRIPT_PN = 'https://www.usbr.gov/pn-bin/agrimet.pl'
 AGRIMET_CROP_REQ_SCRIPT_PN = 'https://www.usbr.gov/pn/agrimet/chart/{}{}et.txt'
@@ -399,17 +399,42 @@ class Agrimet(object):
                     pass
 
 
-def load_stations():
+def load_stations(fix=True):
+    """ Load metadata from USBR PNW region website.
+
+    Parameters
+    ----------
+    fix: bool, optional; as of 08/14/2024, many GP region stations do not have install dates listed, so if fix=True,
+    these dates are manually added.
+    """
     r = requests.get(STATION_INFO_URL)
     stations = json.loads(r.text)
     stations = stations['features']
     stations = {s['properties']['siteid']: s for s in stations}
+
+    if fix:
+        # Fixing missing install dates.
+        # NOTE: 'bomt' is not operable anymore, range of dates is 06/03/1995 to 03/28/2000.
+        gp_stns = ['bfam', 'bftm', 'bomt', 'bozm', 'brgm',
+                   'brtm', 'dlnm', 'gfmt', 'glgm', 'hrlm',
+                   'hvmt', 'jvwm', 'lmmm', 'matm', 'mwsm',
+                   'rbym', 'svwm', 'tosm', 'trfm', 'umhm',
+                   'wssm']
+        gp_installs = ['04/13/1999', '03/29/2000', '', '10/17/1989', '03/10/1999',
+                       '03/09/1999', '03/12/1997', '06/30/1995', '03/26/1998', '03/25/1998',
+                       '06/29/1995', '05/18/2001', '05/03/2000', '03/25/1998', '06/21/2001',
+                       '06/27/1996', '06/18/2001', '05/19/1992', '03/27/2001', '05/16/2001',
+                       '05/17/2001']
+        for stn in range(21):
+            all_stns[gp_stns[stn]]['properties']['install'] = gp_installs[stn]
+
     return stations
 
 
 if __name__ == '__main__':
     # Finding average length of period of record for Montana Agrimet stations
     all_stns = load_stations()
+
     installs = pd.DataFrame()
     i = 0
     for k in all_stns.keys():
@@ -419,17 +444,59 @@ if __name__ == '__main__':
             installs.at[i, 'Install'] = dt.datetime.strptime(install, '%m/%d/%Y')
             installs.at[i, 'POR'] = dt.date.today() - installs.at[i, 'Install'].date()
             i += 1
-    print(i)  # It says 15. There should be 36, but many of the install dates are missing... How to fix?
+    print(i)
     print(installs)
     print(installs['POR'].mean())
-    print(8819 / 365)  # 24 years on 7/22/24
+    print(7963 / 365)  # 22 years on 8/19/24
 
-    for k in all_stns.keys():
-        if all_stns[k]['properties']['state'] == 'MT':
-            print(all_stns[k])
+    years = pd.date_range('1984-01-01', '2025-01-01', freq='YS')
 
-    plt.figure()
-    plt.hist(installs['Install'])
+    plt.figure(figsize=(12, 5))
+    plt.suptitle('Agrimet Station Period of Record Summary')
+
+    plt.subplot(121)
+    plt.xlabel('year of install')
+    plt.ylabel('number of stations')
+    plt.grid(axis='y', zorder=1)
+    plt.hist(installs['Install'], bins=years, rwidth=0.9, align='left', zorder=3)
+
+    plt.subplot(122)
+    plt.xlabel('year')
+    plt.ylabel('fraction of stations with data')
+    plt.grid(axis='y', zorder=1)
+    plt.hist(installs['Install'], bins=years, rwidth=0.9, align='left', zorder=3, cumulative=True, density=True)
+
+    plt.tight_layout()
+    plt.show()
+
+    # Both Agrimet and Mesonet
+
+    # prepping mesonet
+    from mesonet import stns_metadata
+    metadata = stns_metadata(False)  # No install date for inactive stations... :(
+    installs_mn = pd.DataFrame(index=metadata.keys(), columns=['Install Date'])
+    for k, v in metadata.items():
+        installs_mn.loc[k] = v['date_installed']
+    installs_mn['Install Date'] = pd.to_datetime(installs_mn['Install Date'])
+
+    # plotting
+    plt.figure(figsize=(12, 5))
+    plt.suptitle('Weather Station Period of Record Summary')
+
+    plt.subplot(121)
+    plt.xlabel('year of install')
+    plt.ylabel('number of stations')
+    plt.grid(axis='y', zorder=1)
+    plt.hist([installs['Install'], installs_mn['Install Date']], bins=years, rwidth=0.9, align='left', zorder=3, stacked=True)
+    plt.legend(['Agrimet', 'Mesonet'])
+
+    plt.subplot(122)
+    plt.xlabel('year')
+    plt.ylabel('fraction of stations with data')
+    plt.grid(axis='y', zorder=1)
+    plt.hist([installs['Install'], installs_mn['Install Date']], bins=years, rwidth=0.9, align='left', zorder=3,
+             cumulative=True, stacked=True)
+    plt.tight_layout()
     plt.show()
 
 # ========================= EOF ====================================================================
