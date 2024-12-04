@@ -4,4 +4,4 @@
  # Installation
  Currently a stable version can be installed with pip vis git:
 
- 
+ pip install git+https://github.com/MTDNRC-WRD/chmdata@main
