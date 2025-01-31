@@ -492,10 +492,10 @@ class GridMet(Thredds):
         url = url + '#fillmismatch'
         xray = open_dataset(url)
 
-        north_ind = argmin(abs(xray.lat.values - (self.bbox.north + 1.)))
-        south_ind = argmin(abs(xray.lat.values - (self.bbox.south - 1.)))
-        west_ind = argmin(abs(xray.lon.values - (self.bbox.west - 1.)))
-        east_ind = argmin(abs(xray.lon.values - (self.bbox.east + 1.)))
+        north_ind = argmin(abs(xray.lat.values - self.bbox.north))
+        south_ind = argmin(abs(xray.lat.values - self.bbox.south))
+        west_ind = argmin(abs(xray.lon.values - self.bbox.west))
+        east_ind = argmin(abs(xray.lon.values - self.bbox.east))
 
         north_val = xray.lat.values[north_ind]
         south_val = xray.lat.values[south_ind]
@@ -511,6 +511,10 @@ class GridMet(Thredds):
                                    lat=slice(north_val, south_val),
                                    lon=slice(west_val, east_val))]
 
+            geotrans = subset.crs.GeoTransform.split(' ')
+            new_geotran = ' '.join([geotrans[0], geotrans[1], geotrans[2], geotrans[4], '0.0', geotrans[5]])
+            subset['crs'] = subset.crs.assign_attrs(crs_wkt=subset.crs.attrs['spatial_ref'], GeoTransform=new_geotran)
+
             date_ind = self._date_index()
             subset['time'] = date_ind
             if out_filename:
@@ -523,6 +527,10 @@ class GridMet(Thredds):
                                              (self.bbox.south - 1)),
                                    lon=slice((self.bbox.west - 1),
                                              (self.bbox.east + 1)))]
+            geotrans = subset.crs.GeoTransform.split(' ')
+            new_geotran = ' '.join([geotrans[0], geotrans[1], geotrans[2], geotrans[4], '0.0', geotrans[5]])
+            subset['crs'] = subset.crs.assign_attrs(crs_wkt=subset.crs.attrs['spatial_ref'], GeoTransform=new_geotran)
+
             if out_filename:
                 subset.to_netcdf(out_filename)
             if return_array:
