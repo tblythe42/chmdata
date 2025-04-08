@@ -48,7 +48,7 @@ dependencies = [
     "pandas",
     "xarray",
     "requests",
-    "geopandas"
+    "geopy"
 ]
 [project.urls]
 "Homepage" = "https://github.com/MTDNRC-WRD/chmdata"
